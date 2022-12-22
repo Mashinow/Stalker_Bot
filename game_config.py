@@ -2,7 +2,7 @@
 Базовый конфиг для игры Stalker bot. Здесь хранятся различные токены, данные авторизации и ссылки на группы
 """
 
-GameDebug = True  # если включён, то программа будет использовать альтернативную группу для работы бота
+GameDebug = False  # если включён, то программа будет использовать альтернативную группу для работы бота
 VkBotToken = "" if not GameDebug \
     else ""
 GroupBotName = "сталкер"  # имя, на которое будет отзываться бот в беседах при наличии у него админки
@@ -14,4 +14,4 @@ DonutIsWork = False
 DonutGroupId = ""  # группа, к которой подключён кексик
 DonutToken = ""
 
-DatabaseInfo = {"dbname": "stalker", "user": "postgres", "password": "k14ca9jhD", "host": "localhost"}
+DatabaseInfo = {"dbname": "stalker", "user": "postgres", "password": "12345", "host": "localhost"}

@@ -10,7 +10,7 @@ connect = psycopg2.connect(dbname=d.DATABASE_INFO["dbname"], user=d.DATABASE_INF
                         password=d.DATABASE_INFO["password"], host=d.DATABASE_INFO["host"])
 cursor = connect.cursor()
 
-cutsom_remove = True
+cutsom_remove = False
 #
 # UPDATE users set left_hand = 0, right_hand = 0, active_artefact = 0, active_armor = 0, helmet = 0
 #
