@@ -1,0 +1,37 @@
+{
+    "type": "carousel",
+    "elements": [{
+            "photo_id": "-210036099_457240287",
+            "buttons": [{
+                "action": {
+                    "type": "text",
+                    "label": "Лево",
+                    "payload": "2300"
+                },
+                "color":"primary"
+            }]
+        },
+        {
+            "photo_id": "-210036099_457240287",
+            "buttons": [{
+                "action": {
+                    "type": "text",
+                    "label": "Центр",
+                    "payload": "2301"
+                },
+                "color":"primary"
+            }]
+        },
+        {
+            "photo_id": "-210036099_457240287",
+            "buttons": [{
+                "action": {
+                    "type": "text",
+                    "label": "Право",
+                    "payload": "2302"
+                },
+                "color":"primary"
+            }]
+        }
+    ]
+}

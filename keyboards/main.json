@@ -1,0 +1,109 @@
+{
+  "one_time": false,
+  "buttons": [
+    [{
+      "action": {
+        "type": "text",
+		"payload": "100",
+        "label": "&#128506; Локации"
+      },
+      "color": "positive"
+    },
+      {
+        "action": {
+          "type": "text",
+		  "payload": "100",
+          "label": "&#127919; Мини-игры"
+        },
+        "color": "positive"
+      }],
+	[{
+      "action": {
+        "type": "text",
+		"payload": "100",
+        "label": "&#128526; Мой Сталкер"
+      },
+      "color": "positive"
+    },
+      {
+        "action": {
+          "type": "text",
+		  "payload": "100",
+          "label": "&#128128; Охота"
+        },
+        "color": "positive"
+      }],
+    [{
+      "action": {
+        "type": "text",
+		"payload": "100",
+        "label": "&#9878; Аукцион"
+      },
+      "color": "primary"
+    },
+	{
+      "action": {
+        "type": "text",
+		"payload": "100",
+        "label": "&#128188; Инвентарь"
+      },
+      "color": "primary"
+    },
+	{
+      "action": {
+        "type": "text",
+		"payload": "100",
+        "label": "&#128293; Акции"
+      },
+      "color": "primary"
+    }],
+	    [{
+      "action": {
+        "type": "text",
+		"payload": "100",
+        "label": "&#128050; Боссы"
+      },
+      "color": "primary"
+    },
+	{
+      "action": {
+        "type": "text",
+		"payload": "100",
+        "label": "&#9876; Арена"
+      },
+      "color": "primary"
+    },
+	{
+      "action": {
+        "type": "text",
+		"payload": "100",
+        "label": "&#127873; Хабар"
+      },
+      "color": "primary"
+    }],
+	    [{
+      "action": {
+        "type": "text",
+		"payload": "100",
+        "label": "&#128193; Прочее"
+      },
+      "color": "primary"
+    },
+	{
+      "action": {
+        "type": "text",
+		"payload": "100",
+        "label": "&#127758; Ссылки"
+      },
+      "color": "primary"
+    },
+	{
+      "action": {
+        "type": "text",
+		"payload": "100",
+        "label": "&#128176; Магазин"
+      },
+      "color": "primary"
+    }]
+  ]
+}
