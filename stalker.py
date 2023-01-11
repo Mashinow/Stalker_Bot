@@ -794,6 +794,28 @@ class Stalker:
             return d.ITEM_WAS_REMOVED
         return d.SUCCESSFUL
 
+    def inline_keyboard(self, text, answers_list, image=None, is_edit=False, is_callback=False):
+        keyboard = VkKeyboard(inline=True)
+        msg_len = len(answers_list) - 1
+        func = keyboard.add_callback_button if is_callback else keyboard.add_button
+        for i in range(1, len(answers_list)):
+            if answers_list[i] is None:
+                continue
+            func(answers_list[i], color=VkKeyboardColor.PRIMARY,
+                 payload=f'{answers_list[0] * d.PAYLOAD_MULTIPLIER + i - 1}')  # payload позволяет узнать кнопку по идентификатору, используется не полностью
+            if msg_len == 4 or msg_len == 6 or msg_len >= 7:
+                if i % 2 == 0 and i < msg_len:
+                    keyboard.add_line()
+            elif msg_len == 3 or msg_len == 5:
+                if i < msg_len:
+                    keyboard.add_line()
+            elif msg_len == 2 and i < msg_len:
+                keyboard.add_line()
+        message = text
+        if self.send_message(message, keyboard.get_keyboard(), image, is_edit=is_edit) == d.MESSAGE_SEND_ERROR:
+            return d.MESSAGE_SEND_ERROR
+        self.keyboard = answers_list[0]
+
     def sell_item_default(self, cursor):
         item = self.selected_item
         if item.count > 1:
@@ -1031,36 +1053,45 @@ class Stalker:
 
     def send_message(self, text, keyb=d.BASE_KEYBOARD_DATA, attachment=None, is_edit=False, template=None):
         bool_test = True if (is_edit and self.last_edit_message) else False
-        func = d.GIVE.messages.edit if bool_test else d.GIVE.messages.send
-        try:
-            res = func(peer_id=(self.peer_id if self.peer_id != 0 else self.user_id),
-                 message=text,
-                 message_id=self.last_edit_message if bool_test else None,
-                 random_id=int(time.time() * 1000000),
-                 keyboard=keyb,
-                 attachment=attachment,
-                 template=template
-                 )
-        except exceptions.ApiError:
-            if not self.last_peer_id:
-                return d.MESSAGE_SEND_ERROR
-            try:
-                res = func(peer_id=self.last_peer_id,
-                     message=text,
-                     message_id=self.last_edit_message if bool_test else None,
-                     random_id=int(time.time() * 1000000),
-                     keyboard=keyb,
-                     attachment=attachment,
-                     template=template
-                           )
-            except exceptions.ApiError:
-                return d.MESSAGE_SEND_ERROR
-        except Rexceptions.ConnectionError:
-            d.restart_connection()
-            return d.MESSAGE_SEND_ERROR
-        if not bool_test:
-            self.last_edit_message = res
-        return res
+        d.MESSAGES_QUEUE.put(['messages.edit' if bool_test else 'messages.send',
+                              {'peer_id': self.peer_id if self.peer_id != 0 else self.user_id,
+                               'message': text,
+                               'message_id': self.last_edit_message if bool_test else None,
+                               'random_id': int(time.time() * 1000000),
+                               'keyboard': keyb,
+                               'attachment': attachment,
+                               'template': template}, self.user_id])
+        return 0
+        # func = d.GIVE.messages.edit if bool_test else d.GIVE.messages.send
+        # try:
+        #     res = func(peer_id=(self.peer_id if self.peer_id != 0 else self.user_id),
+        #          message=text,
+        #          message_id=self.last_edit_message if bool_test else None,
+        #          random_id=int(time.time() * 1000000),
+        #          keyboard=keyb,
+        #          attachment=attachment,
+        #          template=template
+        #          )
+        # except exceptions.ApiError:
+        #     if not self.last_peer_id:
+        #         return d.MESSAGE_SEND_ERROR
+        #     try:
+        #         res = func(peer_id=self.last_peer_id,
+        #              message=text,
+        #              message_id=self.last_edit_message if bool_test else None,
+        #              random_id=int(time.time() * 1000000),
+        #              keyboard=keyb,
+        #              attachment=attachment,
+        #              template=template
+        #                    )
+        #     except exceptions.ApiError:
+        #         return d.MESSAGE_SEND_ERROR
+        # except Rexceptions.ConnectionError:
+        #     d.restart_connection()
+        #     return d.MESSAGE_SEND_ERROR
+        # if not bool_test:
+        #     self.last_edit_message = res
+        # return res
 
     def get_location_bosses(self, cursor):
         result = '🐲 Боссы текущей локации:\n'
@@ -1767,6 +1798,80 @@ def donut_process(connect):  # потоковая, обрабатывает до
             continue
     pass
 
+
+def messages_process(connect):
+    start_time = time.time()
+    cursor = connect.cursor()
+    while True:
+        current_time = time.time()
+        if current_time - start_time > 0.4:
+            start_time = current_time
+            lst_msg = []
+            lst_err = []
+            for i in range(min(25, d.MESSAGES_QUEUE.qsize())):
+                msg_data = d.MESSAGES_QUEUE.get()
+                lst_msg.append(msg_data)
+                lst_err.append(d.MSG_POOL.method(msg_data[0], {k:v for k, v in msg_data[1].items() if v is not None}))
+            d.MSG_POOL.execute()
+            abc = 0
+            for msg in lst_msg:
+                try:
+                    if msg[0] == 'messages.send':
+                        if not callable(lst_err[abc].result):
+                            player = player_connect(msg[2], cursor)
+                            player.last_edit_message = lst_err[abc].result
+                    elif msg[0] == 'users.get':
+                        if not callable(lst_err[abc].result):
+                            _id = lst_err[abc].result
+                            player = player_connect(msg[2], cursor)
+                            is_arena = msg[3]
+                            _id = _id[0]['id']
+                            if player.user_id == _id:
+                                player.send_message('❌ Нельзя приглашать самого себя')
+                                continue
+                            data = player.follow_user_to_group(_id, cursor, is_arena)
+                            if data == d.NEED_MORE_MONEY_ERROR:
+                                player.send_message('❌ У приглашённого игрока недостаточно энергии для арены')
+                                continue
+                            if data == d.PLAYER_NOT_FOUND_ERROR:
+                                player.send_message('❌ Этот пользователь не зарегистрирован в игре')
+                                continue
+                            elif data == d.ERROR:
+                                err_ans = 'сражается на арене' if is_arena else 'состоит в команде'
+                                player.send_message(f'❌ Этот пользователь уже {err_ans} или приглашен другим игроком')
+                                continue
+                            elif data == d.SLOT_IS_BUSY_ERROR:
+                                player.send_message(f'❌ Сначала ответь на последнее приглашение')
+                                continue
+                            elif data == d.NO_STACK_ERROR:
+                                player.send_message(f'❌ Ты уже пригласил другого игрока, подожди ответа')
+                                continue
+                            inl_ans = 'на арену' if is_arena else 'в команду'
+                            err = data.inline_keyboard(f'❓ Игрок {player.src_name} пригласил тебя '
+                                                        f'{inl_ans}',
+                                                  d.KEYBOARD_ARENA_WAIT_FOLLOW_ANSWER if is_arena else d.KEYBOARD_GROUP_WAIT_FOLLOW_ANSWER)
+                            if err == d.MESSAGE_SEND_ERROR:
+                                player.send_message('❌ Этот пользователь запретил отправлять ему сообщения')
+                                continue
+                            player.send_message(f'♻ Ты отправил приглашение игроку {data.src_name}')
+                            continue
+                    elif msg[0] == 'utils.getShortLink':
+                        if not callable(lst_err[abc].result):
+                            ref_string = lst_err[abc].result
+                            ref_string = ref_string['short_url']
+                            player = player_connect(msg[2], cursor)
+                            player.update_database_value(cursor, d.PLAYER_REF_SRC, ref_string)
+                            player.send_message(
+                                      f'🗺 На кордоне есть торговец по имени Сидорович 👴. Он заинтересован в том, чтобы в Зону '
+                                      f'приходили новые сталкеры 👶. Распространяй информацию о Зоне с помощью этой ссылки {ref_string} '
+                                      f' 🌎. За каждого нового сталкера Сидорович заплатит тебе {d.SIDOROVICH_BONUS}💰',
+                                      attachment=d.SIDOROVICH_PICTURE)
+                except exceptions.VkRequestsPoolException as e:
+                    print(e.args)
+                    print(e.error)
+                abc += 1
+        else:
+            time.sleep(0.4 - (current_time - start_time))
 
 def time_events(connect):  # потоковая, отвечает за ежедневные бонусы и восстановление энергии
     events_game_tick = time.time()

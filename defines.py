@@ -2,6 +2,7 @@ import vk_api
 from vk_api.bot_longpoll import VkBotLongPoll
 from random import choice
 import game_config as gc
+from queue import Queue
 
 """
 Здесь хранятся игровые константы, тексты сообщений от бота и некоторые общие функции
@@ -73,8 +74,12 @@ GROUP_BOT_ID_LEN = len(GROUP_NAME)+len(GROUP_BOT_ID)+1
 BH = vk_api.VkApi(token=TOKEN, api_version=gc.ApiVersion)
 GIVE = BH.get_api()
 LONGPOLL = VkBotLongPoll(vk=BH, group_id=int(GROUP_BOT_ID))
+MSG_POOL = vk_api.VkRequestsPool(BH)
 active_users = []  # массив с идентификаторами активных пользователей
 player_objects = []  # массив с объектами активных пользователей
+
+MESSAGES_QUEUE = Queue()
+
 combat_objects = []  # массив с объектами текущих боёв
 # combat_game_tick = 0  # время для тиков боя, обновляется внешне
 COMBAT_GAME_TICK = 5  # длительность хода

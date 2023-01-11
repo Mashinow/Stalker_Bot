@@ -37,6 +37,7 @@ threading.Thread(target=stalker.combat_process, args=(connect,)).start()
 threading.Thread(target=stalker.clear_old_data).start()
 threading.Thread(target=stalker.wait_arena_process, args=(connect,)).start()
 threading.Thread(target=stalker.time_events, args=(connect,)).start()
+threading.Thread(target=stalker.messages_process, args=(connect,)).start()
 if d.DONUT_WORK:
     threading.Thread(target=stalker.donut_process, args=(connect,)).start()
 
@@ -193,26 +194,7 @@ def blasthack(gm_user, text, image=None, is_edit=False):
 
 
 def inline_keyboard(gm_user, text, answers_list, image=None, is_edit=False, is_callback=False):
-    keyboard = VkKeyboard(inline=True)
-    msg_len = len(answers_list) - 1
-    func = keyboard.add_callback_button if is_callback else keyboard.add_button
-    for i in range(1, len(answers_list)):
-        if answers_list[i] is None:
-            continue
-        func(answers_list[i], color=VkKeyboardColor.PRIMARY,
-                            payload=f'{answers_list[0] * d.PAYLOAD_MULTIPLIER + i - 1}')  # payload позволяет узнать кнопку по идентификатору, используется не полностью
-        if msg_len == 4 or msg_len == 6 or msg_len >= 7:
-            if i % 2 == 0 and i < msg_len:
-                keyboard.add_line()
-        elif msg_len == 3 or msg_len == 5:
-            if i < msg_len:
-                keyboard.add_line()
-        elif msg_len == 2 and i < msg_len:
-            keyboard.add_line()
-    message = text
-    if gm_user.send_message(message, keyboard.get_keyboard(), image, is_edit=is_edit) == d.MESSAGE_SEND_ERROR:
-        return d.MESSAGE_SEND_ERROR
-    gm_user.keyboard = answers_list[0]
+    return gm_user.inline_keyboard(text, answers_list, image, is_edit, is_callback)
 
 
 def inline_keyboard_specifik(gm_user, text, answers_list, flag, image=None, is_edit=False):
@@ -1180,16 +1162,29 @@ def what_message(gm_user, message, key_num):
         if protomes in d.KEYBOARD_SALES[1].lower():
             if gm_user.ref_src == 'n':
                 ref_string = f"https://vk.me/public{d.GROUP_BOT_ID}?ref={gm_user.user_id}"
-                ref_string = d.BH.method('utils.getShortLink', {'url': ref_string})
-                ref_string = ref_string['short_url']
-                gm_user.update_database_value(cursor, d.PLAYER_REF_SRC, ref_string)
+                d.MESSAGES_QUEUE.put(['utils.getShortLink', {'url': ref_string}, gm_user.user_id])
+                # ref_string = d.BH.method('utils.getShortLink', {'url': ref_string})
+                # ref_string = ref_string['short_url']
+                # gm_user.update_database_value(cursor, d.PLAYER_REF_SRC, ref_string)
             else:
                 ref_string = gm_user.ref_src
-            blasthack(gm_user,
-                      f'🗺 На кордоне есть торговец по имени Сидорович 👴. Он заинтересован в том, чтобы в Зону '
-                      f'приходили новые сталкеры 👶. Распространяй информацию о Зоне с помощью этой ссылки {ref_string} '
-                      f' 🌎. За каждого нового сталкера Сидорович заплатит тебе {d.SIDOROVICH_BONUS}💰',
-                      image=d.SIDOROVICH_PICTURE)
+                blasthack(gm_user,
+                          f'🗺 На кордоне есть торговец по имени Сидорович 👴. Он заинтересован в том, чтобы в Зону '
+                          f'приходили новые сталкеры 👶. Распространяй информацию о Зоне с помощью этой ссылки {ref_string} '
+                          f' 🌎. За каждого нового сталкера Сидорович заплатит тебе {d.SIDOROVICH_BONUS}💰',
+                          image=d.SIDOROVICH_PICTURE)
+            # if gm_user.ref_src == 'n':
+            #     ref_string = f"https://vk.me/public{d.GROUP_BOT_ID}?ref={gm_user.user_id}"
+            #     ref_string = d.BH.method('utils.getShortLink', {'url': ref_string})
+            #     ref_string = ref_string['short_url']
+            #     gm_user.update_database_value(cursor, d.PLAYER_REF_SRC, ref_string)
+            # else:
+            #     ref_string = gm_user.ref_src
+            # blasthack(gm_user,
+            #           f'🗺 На кордоне есть торговец по имени Сидорович 👴. Он заинтересован в том, чтобы в Зону '
+            #           f'приходили новые сталкеры 👶. Распространяй информацию о Зоне с помощью этой ссылки {ref_string} '
+            #           f' 🌎. За каждого нового сталкера Сидорович заплатит тебе {d.SIDOROVICH_BONUS}💰',
+            #           image=d.SIDOROVICH_PICTURE)
         elif protomes in d.KEYBOARD_SALES[2].lower():
             blasthack(gm_user, d.ANSWER_IF_NOT_READY)
         else:
@@ -1302,41 +1297,42 @@ def what_message(gm_user, message, key_num):
         is_arena = True if gm_user.keyboard == d.KEYBOARD_ARENA_WAIT_USER_SOURCE[0] else False
         if 'vk.com/' in message:
             screen_name = message.split('/')[-1]
-            _id = d.BH.method('users.get', {'user_ids': screen_name})
-            if not _id:
-                blasthack(gm_user, '❌ неправильная ссылка')
-                return
-            else:
-                _id = _id[0]['id']
-                if gm_user.user_id == _id:
-                    blasthack(gm_user, '❌ Нельзя приглашать самого себя')
-                    return
-                data = gm_user.follow_user_to_group(_id, cursor, is_arena)
-                if data == d.NEED_MORE_MONEY_ERROR:
-                    blasthack(gm_user, '❌ У приглашённого игрока недостаточно энергии для арены')
-                    return
-                if data == d.PLAYER_NOT_FOUND_ERROR:
-                    blasthack(gm_user, '❌ Этот пользователь не зарегистрирован в игре')
-                    return
-                elif data == d.ERROR:
-                    err_ans = 'сражается на арене' if is_arena else 'состоит в команде'
-                    blasthack(gm_user, f'❌ Этот пользователь уже {err_ans} или приглашен другим игроком')
-                    return
-                elif data == d.SLOT_IS_BUSY_ERROR:
-                    blasthack(gm_user, f'❌ Сначала ответь на последнее приглашение')
-                    return
-                elif data == d.NO_STACK_ERROR:
-                    blasthack(gm_user, f'❌ Ты уже пригласил другого игрока, подожди ответа')
-                    return
-                inl_ans = 'на арену' if is_arena else 'в команду'
-                err = inline_keyboard(data, f'❓ Игрок {gm_user.src_name} пригласил тебя '
-                                            f'{inl_ans}',
-                                      d.KEYBOARD_ARENA_WAIT_FOLLOW_ANSWER if is_arena else d.KEYBOARD_GROUP_WAIT_FOLLOW_ANSWER)
-                if err == d.MESSAGE_SEND_ERROR:
-                    blasthack(gm_user, '❌ Этот пользователь запретил отправлять ему сообщения')
-                    return
-                blasthack(gm_user, f'♻ Ты отправил приглашение игроку {data.src_name}')
-                return
+            d.MESSAGES_QUEUE.put(['users.get', {'user_ids': screen_name}, gm_user.user_id, is_arena])
+            # _id = d.BH.method('users.get', {'user_ids': screen_name})
+            # if not _id:
+            #     blasthack(gm_user, '❌ неправильная ссылка')
+            #     return
+            # else:
+            #     _id = _id[0]['id']
+            #     if gm_user.user_id == _id:
+            #         blasthack(gm_user, '❌ Нельзя приглашать самого себя')
+            #         return
+            #     data = gm_user.follow_user_to_group(_id, cursor, is_arena)
+            #     if data == d.NEED_MORE_MONEY_ERROR:
+            #         blasthack(gm_user, '❌ У приглашённого игрока недостаточно энергии для арены')
+            #         return
+            #     if data == d.PLAYER_NOT_FOUND_ERROR:
+            #         blasthack(gm_user, '❌ Этот пользователь не зарегистрирован в игре')
+            #         return
+            #     elif data == d.ERROR:
+            #         err_ans = 'сражается на арене' if is_arena else 'состоит в команде'
+            #         blasthack(gm_user, f'❌ Этот пользователь уже {err_ans} или приглашен другим игроком')
+            #         return
+            #     elif data == d.SLOT_IS_BUSY_ERROR:
+            #         blasthack(gm_user, f'❌ Сначала ответь на последнее приглашение')
+            #         return
+            #     elif data == d.NO_STACK_ERROR:
+            #         blasthack(gm_user, f'❌ Ты уже пригласил другого игрока, подожди ответа')
+            #         return
+            #     inl_ans = 'на арену' if is_arena else 'в команду'
+            #     err = inline_keyboard(data, f'❓ Игрок {gm_user.src_name} пригласил тебя '
+            #                                 f'{inl_ans}',
+            #                           d.KEYBOARD_ARENA_WAIT_FOLLOW_ANSWER if is_arena else d.KEYBOARD_GROUP_WAIT_FOLLOW_ANSWER)
+            #     if err == d.MESSAGE_SEND_ERROR:
+            #         blasthack(gm_user, '❌ Этот пользователь запретил отправлять ему сообщения')
+            #         return
+            #     blasthack(gm_user, f'♻ Ты отправил приглашение игроку {data.src_name}')
+            #     return
         else:
             blasthack(gm_user, '❌ неправильная ссылка')
             return
@@ -1755,14 +1751,18 @@ def main_function():
                         if event.object.user_id != event.object.peer_id:
                             d.CURRENT_PEER_ID = event.object.peer_id
                         _id = event.object.user_id
-                        try:
-                            d.GIVE.messages.sendMessageEventAnswer(
-                                event_id=event.object.event_id,
-                                user_id=_id,
-                                peer_id=(
-                                    d.CURRENT_PEER_ID if d.CURRENT_PEER_ID != 0 else _id))
-                        except vk_api.exceptions.ApiError:
-                            pass
+                        # try:
+                        d.MESSAGES_QUEUE.put(['messages.sendMessageEventAnswer',
+                                              {'event_id': event.object.event_id,
+                                               'user_id': _id,
+                                               'peer_id': d.CURRENT_PEER_ID if d.CURRENT_PEER_ID != 0 else _id}])
+                            # d.GIVE.messages.sendMessageEventAnswer(
+                            #     event_id=event.object.event_id,
+                            #     user_id=_id,
+                            #     peer_id=(
+                            #         d.CURRENT_PEER_ID if d.CURRENT_PEER_ID != 0 else _id))
+                        # except vk_api.exceptions.ApiError:
+                        #     pass
                     if _id in d.active_users:  # Пользователь зарегистрирован и недавно играл
                         player = d.get_player(_id)
                         what_message(player, message, event.object.payload)
