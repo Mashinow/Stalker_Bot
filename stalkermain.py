@@ -41,6 +41,8 @@ threading.Thread(target=stalker.messages_process, args=(connect,)).start()
 if d.DONUT_WORK:
     threading.Thread(target=stalker.donut_process, args=(connect,)).start()
 
+thrEvent = threading.Event()
+
 cursor.execute('SELECT MAX(group_id) FROM groups')
 d.Global_Group_Id = cursor.fetchall()[0][0]
 if not d.Global_Group_Id:
@@ -312,23 +314,38 @@ def critter_timeout(gm_user, current_time):
     gm_user.hard_spam = current_time
 
 
-def send_critter_data(gm_user, result, critter, keyboard=d.KEYBOARD_NONE):
-    if not is_img_ready(critter):
-        art = stalker.Stalker.character_image_generator(critter, cursor)
-        img = make_vk_image(art)
-        if not img:
-            blasthack(gm_user, '❌ Не удалось отправить изображение, попробуйте ещё раз')
-        else:
-            critter.update_database_value(cursor, d.PLAYER_STALKER_IMAGE, img)
-            critter.img_ready = True
-            connect.commit()
-    else:
-        img = critter.img
-    if keyboard == d.KEYBOARD_NONE:
-        blasthack(gm_user, result, image=img)
-    else:
-        inline_keyboard(gm_user, result, keyboard, image=img)
-    sys.exit()
+def send_critter_data():  #(gm_user, result, critter, keyboard=d.KEYBOARD_NONE):  # поточная
+    while True:
+        thrEvent.wait()
+        while not d.MY_STALKER_QUEUE.empty():
+            data = d.MY_STALKER_QUEUE.get()
+            gm_user = data[0]
+            result = data[1]
+            critter = data[2]
+            if len(data) > 3:
+                keyboard = data[3]
+            else:
+                keyboard = d.KEYBOARD_NONE
+            if not is_img_ready(critter):
+                art = stalker.Stalker.character_image_generator(critter, cursor)
+                img = make_vk_image(art)
+                if not img:
+                    blasthack(gm_user, '❌ Не удалось отправить изображение, попробуйте ещё раз')
+                else:
+                    critter.update_database_value(cursor, d.PLAYER_STALKER_IMAGE, img)
+                    critter.img_ready = True
+                    connect.commit()
+            else:
+                img = critter.img
+            if keyboard == d.KEYBOARD_NONE:
+                blasthack(gm_user, result, image=img)
+            else:
+                inline_keyboard(gm_user, result, keyboard, image=img)
+            # sys.exit()
+        thrEvent.clear()
+
+
+threading.Thread(target=send_critter_data).start()
 
 
 def send_auction_lots(gm_user, result):  # для потока; экономит 2 секунды времени
@@ -455,8 +472,10 @@ def what_message(gm_user, message, key_num):
                 blasthack(gm_user, res)
                 return
             result = gm_user.get_player_data()
-            threading.Thread(target=send_critter_data,
-                             args=(gm_user, result, gm_user, d.KEYBOARD_MY_STALKER)).start()  # затратна по времени, требуется отдельный поток
+            d.MY_STALKER_QUEUE.put([gm_user, result, gm_user, d.KEYBOARD_MY_STALKER])
+            thrEvent.set()
+            # threading.Thread(target=send_critter_data,
+            #                  args=(gm_user, result, gm_user, d.KEYBOARD_MY_STALKER)).start()  # затратна по времени, требуется отдельный поток
         elif '💀 охота' in message.lower():
             if gm_user.bar == 0:
                 cr = d.MINI_BOSS_OBJECT
@@ -814,9 +833,12 @@ def what_message(gm_user, message, key_num):
             if len(gm_user.rating_lst) < num+2:
                 return
             target = stalker.player_connect(gm_user.rating_lst[num+1], cursor)
-            threading.Thread(target=send_critter_data,
-                             args=(
-                                 gm_user, None, target)).start()
+            d.MY_STALKER_QUEUE.put([gm_user, None, target])
+            thrEvent.set()
+
+            # threading.Thread(target=send_critter_data,
+            #                  args=(
+            #                      gm_user, None, target)).start()
         elif num == 8:
             inline_keyboard(gm_user, gm_user.get_arena_rating(cursor, gm_user.rating_lst[0], is_top=True), d.KEYBOARD_SHOW_RATING_CRIT, is_edit=True, is_callback=True)
         elif num == 9:
@@ -1257,9 +1279,11 @@ def what_message(gm_user, message, key_num):
                 blasthack(gm_user, '❌ Игрок не найден')
                 return
             result = target.get_player_data()
-            threading.Thread(target=send_critter_data,
-                             args=(
-                                 gm_user, result, target)).start()  # затратна по времени, требуется отдельный поток
+            d.MY_STALKER_QUEUE.put([gm_user, result, target])
+            thrEvent.set()
+            # threading.Thread(target=send_critter_data,
+            #                  args=(
+            #                      gm_user, result, target)).start()  # затратна по времени, требуется отдельный поток
         elif protomes in d.KEYBOARD_BOSS_GROUP_FALSE[1].lower():
             for player in d.auto_find_group:
                 if player.user_id == gm_user.user_id:
@@ -1722,6 +1746,7 @@ def main_function():
         try:
             for event in d.LONGPOLL.listen():
                 if event.type == VkBotEventType.MESSAGE_NEW or event.type == VkBotEventType.MESSAGE_EVENT:  # VkEventType.MESSAGE_NEW:
+                    # cur_time = time.time()
                     # Чтобы наш бот не слышал и не отвечал на самого себя
                     message = ''
                     _id = 0
@@ -1785,6 +1810,7 @@ def main_function():
                     player.connect_time = time.time()  # обновление времени, чтобы не удаляло активных игроков каждые 20 минут
                     while None in player.items:
                         player.items.remove(None)
+                    # print(time.time()-cur_time)
         except exceptions.ConnectionError:
             d.restart_connection()
             continue
