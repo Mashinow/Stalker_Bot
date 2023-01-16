@@ -1041,7 +1041,7 @@ class Stalker:
         return result
 
     def check_lvl_up(self, cursor):
-        if self.opit >= 100 + 100 * self.lvl:
+        while self.opit >= 100 + 100 * self.lvl:
             self.opit -= 100 + 100 * self.lvl
             self.lvl += 1
             self.update_database_value(cursor, d.PLAYER_LVL, self.lvl)
@@ -1917,7 +1917,10 @@ def time_events(connect):  # потоковая, отвечает за ежед�
         cursor.execute(f'UPDATE users SET energy = energy + 1 WHERE energy < 100')
         cursor.execute(f'UPDATE users SET energy = energy + 1 WHERE (premium = 1 and energy < 100)')
         for player in d.player_objects:
-            player.update_database_value(cursor, d.PLAYER_ENERGY, min(100, player.energy + 1))
+            if player.premium:
+                player.update_database_value(cursor, d.PLAYER_ENERGY, min(100, player.energy + 2))
+            else:
+                player.update_database_value(cursor, d.PLAYER_ENERGY, min(100, player.energy + 1))
         now = datetime.datetime.now()
         if now.hour == 21 and now.minute <= 6 and d.LAST_BONUS_DAY != now.date():
             cursor.execute(f'SELECT user_id FROM users')

@@ -1,4 +1,4 @@
-import sqlite3
+# import sqlite3
 import psycopg2
 import stalker
 import defines as d
