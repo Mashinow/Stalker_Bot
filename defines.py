@@ -3,6 +3,8 @@ from vk_api.bot_longpoll import VkBotLongPoll
 from random import choice
 import game_config as gc
 from queue import Queue
+from requests import exceptions
+from time import sleep
 
 """
 Здесь хранятся игровые константы, тексты сообщений от бота и некоторые общие функции
@@ -728,9 +730,13 @@ def restart_connection():
     global BH
     global GIVE
     global LONGPOLL
-    BH = vk_api.VkApi(token=TOKEN, api_version=gc.ApiVersion)
-    GIVE = BH.get_api()
-    LONGPOLL = VkBotLongPoll(vk=BH, group_id=int(GROUP_BOT_ID))
+    try:
+        BH = vk_api.VkApi(token=TOKEN, api_version=gc.ApiVersion)
+        GIVE = BH.get_api()
+        LONGPOLL = VkBotLongPoll(vk=BH, group_id=int(GROUP_BOT_ID))
+    except Exception as e:
+        sleep(600)
+        restart_connection()
 
 
 def quicksort(nums):
